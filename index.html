@@ -28,6 +28,12 @@
       <span class="pill pill--ok">무료 상담</span>
       <span class="pill">모르면 모른다고 적어도 괜찮아요</span>
     </div>
+    <p class="field__help">
+      접수 유형 코드: <code>dev_ai_setup</code> · <code>vibe_coding</code> ·
+      <code>outsourcing</code> · <code>automation_agent</code> ·
+      <code>troubleshooting</code> · <code>consultation</code><br>
+      이름 입력 예시: 홍길동
+    </p>
   </section>
 
   <div class="steps" id="stepper" role="list" aria-label="접수 단계"></div>
@@ -40,7 +46,20 @@
       <section class="panel" id="panelType" hidden>
         <h2 class="panel__title">1. 접수 유형</h2>
         <p class="panel__desc">지금 필요한 도움을 한 개만 골라주세요.</p>
-        <div class="types" id="typeList"></div>
+        <div class="types" id="typeList">
+          <!-- 정적 폴백 목록: 스크립트가 실행되면 form.js 가 이 자리를 다시 그립니다. -->
+          <noscript>
+            <p class="card__hint">이 폼은 자바스크립트가 필요합니다. 아래 여섯 가지 중 어느 쪽인지 알려 주시면 mailto 로 직접 접수해 드립니다.</p>
+            <ul class="foot">
+              <li>개발환경 구축 + AI 연동 (dev_ai_setup)</li>
+              <li>바이브코딩 시작 / 배우기 (vibe_coding)</li>
+              <li>제작 / 외주 의뢰 (outsourcing)</li>
+              <li>업무 자동화 / AI Agent (automation_agent)</li>
+              <li>기존 프로젝트 / 환경 문제 해결 (troubleshooting)</li>
+              <li>아직 잘 모르겠어요 / 방향 상담 (consultation)</li>
+            </ul>
+          </noscript>
+        </div>
       </section>
 
       <section class="panel" id="panelCommon" hidden>
