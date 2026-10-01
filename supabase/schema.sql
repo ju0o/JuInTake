@@ -1,7 +1,7 @@
 -- JuIntake V1 — production Supabase schema reference
 -- Production project: AI-Study-Group (shared free-tier project)
 -- All JuIntake objects use the juintake_ prefix.
--- Never commit the plaintext admin token.
+-- Never commit the plaintext admin password.
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -33,6 +33,7 @@ create table if not exists public.juintake_requests (
     )
   ),
   admin_note text,
+  submission_key text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -43,6 +44,8 @@ create index if not exists juintake_requests_status_idx
   on public.juintake_requests (status, created_at desc);
 create index if not exists juintake_requests_request_type_idx
   on public.juintake_requests (request_type, created_at desc);
+create unique index if not exists juintake_requests_submission_key_uidx
+  on public.juintake_requests (submission_key);
 
 create table if not exists public.juintake_admin_config (
   singleton boolean primary key default true check (singleton),
@@ -67,12 +70,14 @@ before update on public.juintake_requests
 for each row execute function public.juintake_set_updated_at();
 
 drop function if exists public.juintake_submit_request(text, text, text, text, jsonb);
+drop function if exists public.juintake_submit_request(text, text, text, text, jsonb, text);
 create function public.juintake_submit_request(
   p_request_type text,
   p_name text,
   p_contact text,
   p_title text,
-  p_answers jsonb default '{}'::jsonb
+  p_answers jsonb default '{}'::jsonb,
+  p_submission_key text default null
 )
 returns jsonb
 language plpgsql
@@ -82,6 +87,9 @@ as $$
 declare
   v_id uuid;
   v_created_at timestamptz;
+  v_status text;
+  v_duplicate boolean := false;
+  v_key text := nullif(trim(coalesce(p_submission_key, '')), '');
 begin
   if p_request_type is null
      or p_request_type not in (
@@ -100,25 +108,70 @@ begin
   if length(trim(coalesce(p_title, ''))) not between 1 and 400 then
     raise exception 'invalid title';
   end if;
+  if v_key is not null and length(v_key) > 128 then
+    raise exception 'invalid submission key';
+  end if;
 
-  insert into public.juintake_requests (
-    request_type, name, contact, title, answers, status, admin_note
-  ) values (
-    p_request_type,
-    trim(p_name),
-    trim(p_contact),
-    trim(p_title),
-    coalesce(p_answers, '{}'::jsonb),
-    'NEW',
-    null
-  )
-  returning id, created_at into v_id, v_created_at;
+  if v_key is not null then
+    select r.id, r.created_at, r.status
+      into v_id, v_created_at, v_status
+      from public.juintake_requests r
+     where r.submission_key = v_key
+     limit 1;
+
+    if v_id is not null then
+      v_duplicate := true;
+    end if;
+  else
+    select r.id, r.created_at, r.status
+      into v_id, v_created_at, v_status
+      from public.juintake_requests r
+     where r.request_type = p_request_type
+       and r.name = trim(p_name)
+       and r.contact = trim(p_contact)
+       and r.title = trim(p_title)
+       and r.answers = coalesce(p_answers, '{}'::jsonb)
+       and r.created_at >= now() - interval '30 seconds'
+     order by r.created_at desc
+     limit 1;
+
+    if v_id is not null then
+      v_duplicate := true;
+    end if;
+  end if;
+
+  if v_id is null then
+    insert into public.juintake_requests (
+      request_type, name, contact, title, answers, status, admin_note, submission_key
+    ) values (
+      p_request_type,
+      trim(p_name),
+      trim(p_contact),
+      trim(p_title),
+      coalesce(p_answers, '{}'::jsonb),
+      'NEW',
+      null,
+      v_key
+    )
+    on conflict (submission_key) do nothing
+    returning id, created_at, status into v_id, v_created_at, v_status;
+
+    if v_id is null and v_key is not null then
+      select r.id, r.created_at, r.status
+        into v_id, v_created_at, v_status
+        from public.juintake_requests r
+       where r.submission_key = v_key
+       limit 1;
+      v_duplicate := true;
+    end if;
+  end if;
 
   return jsonb_build_object(
     'id', v_id,
     'request_type', p_request_type,
-    'status', 'NEW',
-    'created_at', v_created_at
+    'status', coalesce(v_status, 'NEW'),
+    'created_at', v_created_at,
+    'duplicate', v_duplicate
   );
 end;
 $$;
@@ -141,7 +194,7 @@ begin
     where c.singleton = true
       and c.token_hash = encode(extensions.digest(coalesce(p_token, ''), 'sha256'), 'hex')
   ) then
-    raise exception 'invalid admin token';
+    raise exception 'invalid admin password';
   end if;
 
   if p_status is not null
@@ -196,7 +249,7 @@ begin
     where c.singleton = true
       and c.token_hash = encode(extensions.digest(coalesce(p_token, ''), 'sha256'), 'hex')
   ) then
-    raise exception 'invalid admin token';
+    raise exception 'invalid admin password';
   end if;
 
   if p_status is not null
@@ -237,7 +290,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $
+as $$
 begin
   if not exists (
     select 1
@@ -263,26 +316,26 @@ begin
 
   return jsonb_build_object('ok', true, 'updated_at', now());
 end;
-$;
+$$;
 
 revoke all on public.juintake_requests from anon, authenticated;
 revoke all on public.juintake_admin_config from anon, authenticated;
-revoke all on function public.juintake_submit_request(text,text,text,text,jsonb) from public;
+revoke all on function public.juintake_submit_request(text,text,text,text,jsonb,text) from public;
 revoke all on function public.juintake_admin_list_requests(text,text) from public;
 revoke all on function public.juintake_admin_update_request(text,uuid,text,text) from public;
 revoke all on function public.juintake_admin_change_password(text,text) from public;
 
-grant execute on function public.juintake_submit_request(text,text,text,text,jsonb) to anon, authenticated;
+grant execute on function public.juintake_submit_request(text,text,text,text,jsonb,text) to anon, authenticated;
 grant execute on function public.juintake_admin_list_requests(text,text) to anon, authenticated;
 grant execute on function public.juintake_admin_update_request(text,uuid,text,text) to anon, authenticated;
 grant execute on function public.juintake_admin_change_password(text,text) to anon, authenticated;
 
--- Founder-only admin-token registration example.
--- Replace <ADMIN_TOKEN> locally; never commit the plaintext token.
+-- Founder-only password registration example.
+-- Replace <ADMIN_PASSWORD> locally; never commit the plaintext password.
 -- insert into public.juintake_admin_config (singleton, token_hash, updated_at)
 -- values (
 --   true,
---   encode(extensions.digest('<ADMIN_TOKEN>', 'sha256'), 'hex'),
+--   encode(extensions.digest('<ADMIN_PASSWORD>', 'sha256'), 'hex'),
 --   now()
 -- )
 -- on conflict (singleton) do update
