@@ -4,7 +4,7 @@
  * 4단계(유형 선택 → 기본 정보 → 상세 내용 → 확인/제출) 동작.
  * 제출은 Supabase JS v2 로 오직
  *   supabase.rpc('juintake_submit_request',
- *     {p_request_type, p_name, p_contact, p_title, p_answers})
+ *     {p_request_type, p_name, p_contact, p_title, p_answers, p_submission_key})
  * 한 경로만 사용합니다. 테이블을 직접 읽거나 쓰지 않습니다.
  * ===================================================================== */
 (function () {
@@ -18,11 +18,20 @@
   var STEPS = ['접수 유형', '기본 정보', '상세 내용', '확인 및 제출'];
   var ANSWER_VERSION = 1;
 
+  function newSubmissionKey() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    return 'ju-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  }
+
   var state = {
     step: 1,
     requestType: null,
     common: {},
-    detail: {}
+    detail: {},
+    submissionKey: newSubmissionKey(),
+    submitting: false
   };
 
   var client = null;
@@ -512,6 +521,9 @@
     if (event) {
       event.preventDefault();
     }
+    if (state.submitting) {
+      return;
+    }
     var consent = byId('consent');
     if (!consent.checked) {
       fail('개인정보 수집·이용 동의에 체크해 주세요.');
@@ -528,9 +540,11 @@
 
     var alertBox = byId('formAlert');
     alertBox.hidden = true;
+    state.submitting = true;
     setBusy(true);
 
     if (!client) {
+      state.submitting = false;
       setBusy(false);
       fail('Supabase 연결에 실패했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.');
       return;
@@ -541,14 +555,17 @@
       p_name: state.common.name || '',
       p_contact: state.common.contact || '',
       p_title: state.common.title || '',
-      p_answers: payload()
+      p_answers: payload(),
+      p_submission_key: state.submissionKey
     })
       .then(function (result) {
-        setBusy(false);
         if (result.error) {
+          state.submitting = false;
+          setBusy(false);
           fail('접수에 실패했습니다: ' + result.error.message);
           return;
         }
+        setBusy(false);
         var data = result.data || {};
         var ticket = byId('ticket');
         if (ticket) {
@@ -570,6 +587,8 @@
     state.requestType = null;
     state.common = {};
     state.detail = {};
+    state.submissionKey = newSubmissionKey();
+    state.submitting = false;
     renderTypes();
     renderCommon();
     renderDetail();
