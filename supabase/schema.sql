@@ -228,15 +228,54 @@ begin
 end;
 $$;
 
+drop function if exists public.juintake_admin_change_password(text, text);
+create function public.juintake_admin_change_password(
+  p_current_password text,
+  p_new_password text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+begin
+  if not exists (
+    select 1
+    from public.juintake_admin_config c
+    where c.singleton = true
+      and c.token_hash = encode(
+        extensions.digest(coalesce(p_current_password, ''), 'sha256'),
+        'hex'
+      )
+  ) then
+    raise exception 'invalid admin password';
+  end if;
+
+  if length(coalesce(p_new_password, '')) < 12
+     or length(coalesce(p_new_password, '')) > 128 then
+    raise exception 'password length must be between 12 and 128';
+  end if;
+
+  update public.juintake_admin_config
+     set token_hash = encode(extensions.digest(p_new_password, 'sha256'), 'hex'),
+         updated_at = now()
+   where singleton = true;
+
+  return jsonb_build_object('ok', true, 'updated_at', now());
+end;
+$;
+
 revoke all on public.juintake_requests from anon, authenticated;
 revoke all on public.juintake_admin_config from anon, authenticated;
 revoke all on function public.juintake_submit_request(text,text,text,text,jsonb) from public;
 revoke all on function public.juintake_admin_list_requests(text,text) from public;
 revoke all on function public.juintake_admin_update_request(text,uuid,text,text) from public;
+revoke all on function public.juintake_admin_change_password(text,text) from public;
 
 grant execute on function public.juintake_submit_request(text,text,text,text,jsonb) to anon, authenticated;
 grant execute on function public.juintake_admin_list_requests(text,text) to anon, authenticated;
 grant execute on function public.juintake_admin_update_request(text,uuid,text,text) to anon, authenticated;
+grant execute on function public.juintake_admin_change_password(text,text) to anon, authenticated;
 
 -- Founder-only admin-token registration example.
 -- Replace <ADMIN_TOKEN> locally; never commit the plaintext token.
