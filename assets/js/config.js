@@ -729,7 +729,8 @@
     rpc: {
       submit: 'juintake_submit_request',
       adminList: 'juintake_admin_list_requests',
-      adminUpdate: 'juintake_admin_update_request'
+      adminUpdate: 'juintake_admin_update_request',
+      adminChangePassword: 'juintake_admin_change_password'
     },
     supabase: {
       url: SUPABASE_URL,
