@@ -1,13 +1,13 @@
 /* =====================================================================
  * JuIntake V1 — 운영 관리 화면
  * ---------------------------------------------------------------------
- * 관리자 토큰은 이 파일에도, 저장소 어디에도 없습니다.
- * 페이지에 열 때 직접 입력받아 sessionStorage 에만 보관하며,
+ * 관리자 비밀번호 원문은 이 파일에도, 저장소 어디에도 없습니다.
+ * 페이지를 열 때 직접 입력받아 sessionStorage 에만 보관하며,
  * 잘못된 토큰은 백엔드가 예외로 막습니다(fail closed).
  *
  * 사용 RPC (이 둘뿐):
  *   rpc('juintake_admin_list_requests',  {p_token, p_status})
- *   rpc('juintake_admin_update_request', {p_token, p_id, p_status, p_admin_note})
+ *   rpc('juintake_admin_update_request', {p_token, p_id, p_status, p_admin_note})\n *   rpc('juintake_admin_change_password', {p_current_password, p_new_password})
  * ===================================================================== */
 (function () {
   'use strict';
@@ -172,8 +172,8 @@
       return;
     }
     if (!token()) {
-      showListMessage('관리자 토큰이 필요합니다.');
-      notify('관리자 토큰을 입력해 주세요.', 'err');
+      showListMessage('관리자 비밀번호가 필요합니다.');
+      notify('관리자 비밀번호를 입력해 주세요.', 'err');
       return;
     }
 
@@ -186,9 +186,9 @@
     }).then(function (result) {
       if (result.error) {
         showListMessage('불러오지 못했습니다.');
-        notify('토큰이 올바르지 않거나 목록을 읽지 못했습니다: ' + result.error.message, 'err');
+        notify('비밀번호가 올바르지 않거나 목록을 읽지 못했습니다: ' + result.error.message, 'err');
         if (isAuthFailure(result.error.message)) {
-          logout('토큰이 올바르지 않습니다. 다시 입력해 주세요.');
+          logout('비밀번호가 올바르지 않습니다. 다시 입력해 주세요.');
         }
         return;
       }
@@ -372,7 +372,7 @@
       if (result.error) {
         notify('저장에 실패했습니다: ' + result.error.message, 'err');
         if (isAuthFailure(result.error.message)) {
-          logout('토큰이 올바르지 않습니다. 다시 입력해 주세요.');
+          logout('비밀번호가 올바르지 않습니다. 다시 입력해 주세요.');
         }
         return;
       }
@@ -414,6 +414,58 @@
     refresh();
   }
 
+  function changePassword() {
+    if (!client) {
+      notify('Supabase 연결에 실패했습니다. 네트워크를 확인해 주세요.', 'err');
+      return;
+    }
+
+    var currentInput = byId('currentPasswordInput');
+    var newInput = byId('newPasswordInput');
+    var confirmInput = byId('confirmPasswordInput');
+    var currentPassword = String(currentInput.value || '');
+    var newPassword = String(newInput.value || '');
+    var confirmPassword = String(confirmInput.value || '');
+
+    if (!currentPassword) {
+      notify('현재 비밀번호를 입력해 주세요.', 'err');
+      currentInput.focus();
+      return;
+    }
+    if (newPassword.length < 12 || newPassword.length > 128) {
+      notify('새 비밀번호는 12자 이상 128자 이하로 설정해 주세요.', 'err');
+      newInput.focus();
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      notify('새 비밀번호 확인 값이 일치하지 않습니다.', 'err');
+      confirmInput.focus();
+      return;
+    }
+
+    var button = byId('changePasswordBtn');
+    button.disabled = true;
+    button.textContent = '변경 중…';
+
+    client.rpc(CFG.rpc.adminChangePassword, {
+      p_current_password: currentPassword,
+      p_new_password: newPassword
+    }).then(function (result) {
+      button.disabled = false;
+      button.textContent = '비밀번호 변경';
+      currentInput.value = '';
+      newInput.value = '';
+      confirmInput.value = '';
+
+      if (result.error) {
+        notify('비밀번호를 변경하지 못했습니다: ' + result.error.message, 'err');
+        return;
+      }
+
+      logout('관리자 비밀번호를 변경했습니다. 새 비밀번호로 다시 로그인해 주세요.');
+    });
+  }
+
   function login() {
     if (!client) {
       notify('Supabase 연결에 실패했습니다. 네트워크를 확인해 주세요.', 'err');
@@ -422,7 +474,7 @@
     var input = byId('tokenInput');
     var value = String(input.value || '').trim();
     if (!value) {
-      notify('관리자 토큰을 입력해 주세요.', 'err');
+      notify('관리자 비밀번호를 입력해 주세요.', 'err');
       input.focus();
       return;
     }
@@ -443,7 +495,7 @@
         byId('console').hidden = true;
         notify(
           isAuthFailure(result.error.message)
-            ? '관리자 토큰이 올바르지 않습니다.'
+            ? '관리자 비밀번호가 올바르지 않습니다.'
             : '확인하지 못했습니다: ' + result.error.message,
           'err'
         );
@@ -475,6 +527,7 @@
     byId('logoutBtn').addEventListener('click', function () {
       logout();
     });
+    byId('changePasswordBtn').addEventListener('click', changePassword);
 
     client = createClient();
 
