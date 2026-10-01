@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JuIntake — 운영 관리</title>
+<meta name="description" content="JuIntake 접수 요청을 확인하고 상태와 메모를 관리하는 운영자용 화면입니다.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0a0c10">
+<link rel="stylesheet" href="assets/css/app.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%237c5cff'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='sans-serif'%3EJ%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div class="wrap wrap--wide">
+  <header class="topbar">
+    <a class="brand" href="index.html">
+      <span class="brand__dot" aria-hidden="true"></span>
+      <span>JuIntake 운영</span>
+    </a>
+    <span class="topbar__meta">접수 확인 · 상태 관리</span>
+  </header>
+
+  <div class="alert" id="adminAlert" role="alert" hidden></div>
+
+  <!-- 토큰 게이트: 토큰은 이 입력란에서만 받고 sessionStorage 에만 둡니다 -->
+  <section class="card gate" id="gate">
+    <h1 class="panel__title">운영자 토큰 입력</h1>
+    <p class="panel__desc">
+      이 화면은 운영자 전용입니다. 토큰은 소스 코드나 저장소에 들어 있지 않으며,
+      입력한 값은 이 탭의 sessionStorage 에만 보관되고 탭을 닫으면 사라집니다.
+    </p>
+    <div class="field">
+      <label class="field__label" for="tokenInput">관리자 토큰</label>
+      <input type="password" id="tokenInput" autocomplete="off" spellcheck="false" placeholder="관리자 토큰을 붙여 넣으세요">
+      <p class="field__help">잘못된 토큰이면 아무것도 열리지 않습니다. 토큰을 잊으셨으면 백엔드에서 새로 만들어 주세요.</p>
+    </div>
+    <div class="nav">
+      <span class="admin-bar__spacer"></span>
+      <button type="button" class="btn btn--primary" id="loginBtn">확인</button>
+    </div>
+  </section>
+
+  <div id="console" hidden>
+    <div class="admin-bar">
+      <label for="refreshBtn">접수 목록</label>
+      <div class="filters filters--inline" id="filters"></div>
+      <span class="admin-bar__spacer"></span>
+      <button type="button" class="btn btn--sm" id="refreshBtn">새로고침</button>
+      <button type="button" class="btn btn--sm btn--danger" id="logoutBtn">로그아웃</button>
+    </div>
+
+    <div class="admin-grid">
+      <div class="card">
+        <h2 class="card__title">요청</h2>
+        <p class="card__hint">제목을 누르면 오른쪽에 전체 응답이 열립니다.</p>
+        <div id="listBox" class="spinner">불러오는 중…</div>
+        <ul class="req-list" id="reqList"></ul>
+      </div>
+      <div class="card" id="detailPane"></div>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <p>JuIntake 운영 화면 · 모든 변경은 접수 기록에 남습니다.</p>
+    <p><a href="index.html">공개 접수 페이지로</a></p>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/admin.js"></script>
+</body>
+</html>
