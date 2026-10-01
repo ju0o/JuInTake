@@ -37,6 +37,18 @@ supabase/schema.sql     운영 DB 문서용 스키마/함수/권한 기준
 `assets/js/config.js` 의 `supabase` 항목이 곧 배포 설정입니다.
 anon(publishable) 키만 담고 있으며, 브라우저에서 쓰는 공개 키입니다.
 
+브라우저는 Supabase JS v2 를 CDN(jsDelivr)에서 불러와 사용합니다.
+빌드 도구와 패키지 매니페스트는 없고, 이 CDN 스크립트 하나만 외부 의존입니다.
+`service_role` 키는 이 사이트 어디에도 없습니다.
+
+```
+index.html ─┬─ CDN: @supabase/supabase-js@2
+            └─ assets/js/config.js + form.js ──▶ juintake_submit_request
+admin.html ─┬─ CDN: @supabase/supabase-js@2
+            └─ assets/js/config.js + admin.js ──▶ juintake_admin_list_requests
+                                                └▶ juintake_admin_update_request
+```
+
 ## 백엔드
 
 접수는 Supabase RPC 한 경로로만 들어갑니다. 테이블을 직접 읽거나 쓰지 않습니다.
